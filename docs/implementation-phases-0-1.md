@@ -1,10 +1,10 @@
 # Implementation Plan — Phases 0 and 1
 
 **Status:** Proposed; no code written and no experiments run  
-**Parent:** [Experiment Plan v2.0](experiment-plan.md)  
+**Parent:** [Experiment Plan v2.1](experiment-plan.md)  
 **Target:** One RTX 3090 (24 GB), local execution  
 **Primary goal:** Reproduce official NCM baselines, then measure candidate quality and Oracle@K at controlled inference budgets.  
-**Out of scope:** MBR/verification selection, iterative refinement, fine-tuning, training from scratch, external compute, and general-purpose instruction following.
+**Out of scope:** MBR/deployable verification selection, iterative refinement, fine-tuning, training from scratch, external compute, and general-purpose instruction following. **In scope (approval-gated):** offline semantic evaluation of saved candidate pools, after judge calibration and separate API spend approval. See [semantic evaluation design](semantic-evaluation.md).
 
 ## 0. Critical upstream findings (verified 2026-11-11)
 
@@ -39,6 +39,7 @@ README.md
 docs/
   experiment-plan.md
   implementation-phases-0-1.md
+  semantic-evaluation.md     # semantic judge design; already documented
   results/                  # small reviewed reports; not raw generations
 configs/
   phase0/                   # experiment manifests referencing upstream defaults
@@ -48,6 +49,7 @@ src/ncm_experiments/
   datasets.py               # stable ID and split management
   sampling.py               # controlled candidate generation
   metrics.py                # independently validated task metrics
+  semantic_eval.py          # planned offline judge adapter, not part of generation
   profiling.py              # timed, synchronized measurements
   reporting.py              # aggregate results + bootstrap intervals
 tests/
@@ -71,6 +73,7 @@ Every run must record:
 - Warmup policy, measured timing scope, peak VRAM, exceptions, retries.
 - Raw candidates with `task`, `input_id`, `candidate_rank`, `seed`, `text`, generation duration and validity/metric fields.
 - Explicit metric implementation/version and references stored separately from candidate generation.
+- Stable task/context, original source, constraints and reference identifiers for offline semantic scoring; restrict reference access to offline evaluation. Store judge results separately, keyed by candidate ID.
 
 Write append-safe intermediate artifacts and support resuming incomplete pools without overwriting valid outputs. Never commit dataset/test answers, checkpoint blobs, or raw generation dumps.
 
@@ -111,6 +114,7 @@ Capture the upstream score printout and the shard data files as read-only raw ba
 3. Add explicit input order and shard mapping.
 4. Add isolated caches/results directories and a meaningful failure/reporting path.
 5. Record per-stage timing: download/setup excluded from generation timing; warmup excluded; separately report model-load + generation (cold), generation only (warm), and scoring. Use `torch.cuda.synchronize()` around GPU timings.
+6. Retain source/context and task constraints for offline semantic evaluation, without exposing references to generation. Phase 0 does not call Jev.
 
 **Acceptance:** Our baseline harness and upstream evaluation agree on example IDs/output counts and task metrics for the same output records; raw results are reusable without rerunning the model.
 
@@ -209,6 +213,18 @@ Target several independently seeded pools for uncertainty assessment when cost p
 
 **Metric guardrail:** Oracle@K uses held-out references **offline only for analysis**. It must not be used to generate or select deployed outputs, and must not be misrepresented as MBR performance.
 
+### P1.4a — Semantic correctness track (offline and approval-gated)
+
+Follow [the Jev protocol](semantic-evaluation.md) on saved candidate pools. Keep the NCM checkpoint, stochastic generation, and existing conventional metrics unchanged.
+
+1. Label development examples independently for reference equivalence, task correctness and material errors, including valid paraphrases, missing information, negation, entities and number changes. Calibrate Jev's probabilistic Noul answers and freeze the resolved judge version, rubrics, thresholds and uncertain/review policy **before** held-out scoring.
+2. Request separate authorization for an API spend cap. Pilot only a representative subset of saved XSum and WMT14 candidates; Sudoku keeps its deterministic validator. Cache raw probabilities, model/version, rubric hash, input/candidate ID, usage, retries and latency.
+3. Run the full saved pool only if the pilot demonstrates acceptable reliability and cost. Plot **Jev-estimated semantic pass-within-K** beside conventional reference Oracle@K and independently audited verified pass-within-K. Never claim a Jev pass is verified ground truth.
+4. Audit false positives and false negatives, including **pool-level false-accept rates** as K increases. An illustrative *independent* 1% false-accept probability per wrong candidate yields apparent pool success near 15% at K=16, 47% at K=64 and 92% at K=256. Real judge errors may correlate.
+5. Investigate lexical/semantic disagreements, threshold sensitivity and total cost. Treat inadequate calibration or missing spend approval as a documented limitation, not a positive result.
+
+**Acceptance:** References stay out of generation and deployed selection; semantic scores are separately versioned and auditable; independent labels support any claimed semantic gains; judge error and spend are explicitly reported. This work package may be deferred if judge readiness or spend approval fails, while keeping a clear Phase 1 limitation.
+
 ### P1.5 — Report and decision
 
 Produce `docs/results/phase1-report.md` containing:
@@ -218,12 +234,14 @@ Produce `docs/results/phase1-report.md` containing:
 4. Separate scores for generation-only GPU time, end-to-end inference/selection-preparation time, and disk/scoring overhead.
 5. Examples where candidate availability helps, stalls or deteriorates in validity.
 6. A decision on which task and K budgets to carry into Phase 2 selection/MBR experiments.
+7. A semantic appendix comparing lexical, Jev-estimated and independently verified results, model/rubric/threshold versions, false-pass rates and judge cost (or a documented gated deferral).
 
 **Gate P1 → P2 (no automatic advance):**
 - [ ] Non-degenerate, reproducible sampling confirmed.
 - [ ] Nested K sweeps and offline scoring independently validated.
 - [ ] Quality/compute and diversity curves produced with uncertainty.
 - [ ] Reference leakage excluded from generation.
+- [ ] If semantic evaluation ran: judge calibration, independent audit, pool-level false-pass analysis and spend accounting completed; otherwise explicitly document deferral.
 - [ ] Evidence indicates whether additional candidate selection is worth testing (or documents a negative finding).
 - [ ] A separate Phase 2 proposal/approval is recorded.
 
@@ -241,8 +259,9 @@ Produce `docs/results/phase1-report.md` containing:
 | P1-A | Add stochastic sampling and deterministic seeds | **P0 approved** | Valid candidate pools + tests |
 | P1-B | Calibrate sampling on separate development set | P1-A | Frozen sampling configs |
 | P1-C | Run staged nested-K sweeps | P1-B | Candidate manifests and measured costs |
-| P1-D | Offline Oracle@K/diversity analysis | P1-C | Figures, tables, uncertainty |
-| P1-E | Report results and propose next decision | P1-D | Phase 1 report + decision |
+| P1-D | Offline conventional Oracle@K/diversity analysis | P1-C | Figures, tables, uncertainty |
+| P1-D2 | Approval-gated Jev calibration + offline semantic evaluation | P1-C, judge/spend approval | Versioned audit and semantic-vs-lexical results (or documented deferral) |
+| P1-E | Report results and propose next decision | P1-D, P1-D2 disposition | Phase 1 report + decision |
 
 ## 5. Minimal test plan
 
@@ -254,6 +273,7 @@ Produce `docs/results/phase1-report.md` containing:
 6. **Cost:** Time GPU work only after synchronization and warmup; distinguish cold-start, generation and scoring costs.
 7. **Failure recovery:** Interrupted runs resume without silently duplicating candidate ranks or discarding unsuccessful candidates.
 8. **Regression:** Vanilla upstream baseline outputs/metrics are unchanged by enabling experimental code.
+9. **Semantic judge:** Independently labeled equivalence/validity/error fixtures; pin version/rubrics; reference isolation; threshold sensitivity and false-pass-by-K audits; scores reproduce from saved candidates without regenerating.
 
 ## 6. Decisions deliberately deferred
 
@@ -262,6 +282,7 @@ Produce `docs/results/phase1-report.md` containing:
 - Running K=256 for more than a small subset.
 - Adding a separate large verifier, MBR, iterative feedback, training, or scaling model size.
 - Additional hardware/rental costs.
+- Jev model and thresholds until calibration, and any external API spend until separately approved; no judge-derived training in Phase 1.
 
 ## 7. External references
 
