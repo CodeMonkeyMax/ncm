@@ -1,6 +1,6 @@
 # Implementation Plan — Phases 0 and 1
 
-**Status:** P0-A, P0.3 and P0.4 implemented; measured Phase 0 baselines and later phases remain
+**Status:** P0-A, P0.3 and P0.4 implemented; initial P0.5 XSum/Sudoku runs completed on RTX 3080. The RTX 3090 timing gate, WMT14, and later phases remain.
 **Parent:** [Experiment Plan v2.1](experiment-plan.md)  
 **Target:** One RTX 3090 (24 GB), local execution  
 **Primary goal:** Reproduce official NCM baselines, then measure candidate quality and Oracle@K at controlled inference budgets.  
@@ -155,11 +155,13 @@ To independently score an archived JSONL run:
 
 **Deliverable:** `docs/results/phase0-report.md` with environment, exact commands, output counts, scores, per-example audit, device utilization, cost per candidate and known deviations.
 
+**Initial execution (2026-11-12 UTC):** The report contains measured 200-example XSum and Sudoku-easy runs, independent score replays, nvidia-smi telemetry and a fixed-subset repeatability check. Both tasks produced exactly reproducible candidates on this RTX 3080; the same hardware results must not be treated as RTX 3090 measurements. WMT14 remains planned because its checkpoint and data are outside the current selective artifact allowlist. The Phase 0 → Phase 1 gate is therefore still open.
+
 **Gate P0 → P1:**
-- [ ] Exact upstream versions and artifact hashes recorded.
-- [ ] At least XSum and Sudoku easy complete (WMT14 planned or successfully reproduced).
-- [ ] Saved outputs reproduce metrics without regeneration.
-- [ ] No mismatched IDs/refs, silent corruptions or unexplained evaluation failures.
+- [x] Exact upstream versions and artifact hashes recorded.
+- [x] At least XSum and Sudoku easy complete (WMT14 planned or successfully reproduced).
+- [x] Saved outputs reproduce metrics without regeneration.
+- [x] No mismatched IDs/refs, silent corruptions or unexplained evaluation failures in the measured runs.
 - [ ] End-to-end and warm generation latency measured on the 3090.
 - [ ] Phase 1 candidate-generation approach approved before implementation.
 
