@@ -16,10 +16,12 @@ Read the [full experiment plan](docs/experiment-plan.md).
 
 Implementation planning: [Phases 0–1 engineering plan](docs/implementation-phases-0-1.md).
 
+Semantic correctness: [Jev evaluation design and safeguards](docs/semantic-evaluation.md).
+
 | Phase | Focus | Decision gate |
 |---|---|---|
 | 0 | Reproduce and instrument official checkpoints | Confirm reliable local baselines |
-| 1 | Candidate scaling (K = 1, 4, 16, 64, 256) | Does Oracle@K improve? |
+| 1 | Candidate scaling + calibrated semantic evaluation (K = 1, 4, 16, 64, 256) | Does independently supported Oracle@K improve? |
 | 2 | MBR, diversity-aware consensus, verification | Can selectors capture the improvement? |
 | 3 | Iterative consensus / revision | Does iteration beat one-shot methods at equal compute? |
 | 4 | Compute allocation and autoregressive baselines | Is there a meaningful quality-per-compute advantage? |
@@ -32,6 +34,7 @@ Implementation planning: [Phases 0–1 engineering plan](docs/implementation-pha
 - Separate **candidate availability** (Oracle@K) from **candidate selection**.
 - Compare at matched end-to-end compute and wall-clock cost.
 - Evaluate with independent ground truth or task metrics, not consensus alone.
+- Distinguish lexical/reference similarity, Jev-estimated semantic correctness, and independently verified correctness; calibrate judges before trusting pass rates.
 - Regard convergence and correctness as different phenomena.
 - Preserve negative results and report uncertainty.
 - Do not implement later phases speculatively.
