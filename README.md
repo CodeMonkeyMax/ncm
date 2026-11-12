@@ -2,7 +2,9 @@
 
 An independent research project exploring whether **Next-Concept Modeling (NCM)** can trade inference-time computation for model size through candidate generation, Minimum Bayes Risk (MBR) selection, verification, and iterative refinement.
 
-> **Status:** Planning only. No experiments or implementation have been started. This repository is not affiliated with the original NCM researchers.
+> **Status:** P0-A complete. Official XSum and Sudoku-easy smoke tests ran on 10 and 50 inputs at batch size 4; an initial instrumented baseline adapter is available. Phase 0 reproduction and instrumentation are not yet complete. This repository is not affiliated with the original NCM researchers.
+
+Local setup and hardware notes: [environment](docs/environment.md).
 
 ## Research question
 
@@ -43,4 +45,3 @@ Semantic correctness: [Jev evaluation design and safeguards](docs/semantic-evalu
 
 - [NCM research repository](https://github.com/HazyResearch/ncm)
 - [NCM pretrained checkpoints](https://huggingface.co/hazyresearch/ncm-checkpoints)
-

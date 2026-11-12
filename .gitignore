@@ -1,0 +1,15 @@
+# Local upstream checkout, virtualenv, weights, datasets, and raw runs.
+# Never commit checkpoints, evaluation inputs, or generation dumps.
+.local/
+runs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Secrets and editor noise
+.env
+.DS_Store

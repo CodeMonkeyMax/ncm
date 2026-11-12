@@ -1,0 +1,71 @@
+{
+  "purpose": "P0-A selective official artifact allowlist. Do not download whole HF repos.",
+  "upstream": {
+    "url": "https://github.com/HazyResearch/ncm",
+    "commit": "c70274273f489abc73832b2b98584a8483b6b203"
+  },
+  "checkpoints": {
+    "repo": "hazyresearch/ncm-checkpoints",
+    "revision": "d342ce8aaea58830eef3b8ad473664673e41f692",
+    "local_dir": ".local/artifacts/checkpoints",
+    "files": [
+      {
+        "path": "xsum/generator.pt",
+        "size": 354355211,
+        "sha256": "f152f390253de886e46303654f01b9e7a2586e609ba3d6b5e86d5969903b1fd4"
+      },
+      {
+        "path": "xsum/tokenizer.pt",
+        "size": 299626079,
+        "sha256": "1f806ddaf8e023d1933e95efeabcaaf99f795576c0a05045f1a0f9389ab34fa7"
+      },
+      {
+        "path": "xsum/config.yaml",
+        "size": 2345,
+        "git_oid": "0394a34c0dee9e36e60318d61f7de1bd9c7fa489"
+      },
+      {
+        "path": "sudoku/easy/generator.pt",
+        "size": 102560203,
+        "sha256": "1cefebcd1eae0e210b7e991fdce0e86964d0e897e94a3b432d1008ab92d9926e"
+      },
+      {
+        "path": "sudoku/easy/tokenizer.pt",
+        "size": 59816209,
+        "sha256": "3f9c87e99fd49900929cd650181f55bf00530280416992b11ddc4ea869b39d68"
+      },
+      {
+        "path": "sudoku/easy/config.yaml",
+        "size": 1980,
+        "git_oid": "adef40fc50a296bf598ecf6fee092bc571715c34"
+      }
+    ]
+  },
+  "datasets": {
+    "repo": "hazyresearch/ncm-datasets",
+    "revision": "6580ba41a4b0a976dde876fbe84d25327617b0e6",
+    "local_dir": ".local/artifacts/datasets",
+    "files": [
+      {
+        "path": "xsum/passages.pickle",
+        "size": 18506302,
+        "sha256": "39b820f0a71ddd6ad178b2700eeae6d035729053b1b2f115d3a92810c6ebf4f8"
+      },
+      {
+        "path": "xsum/reference_summaries.pickle",
+        "size": 1456199,
+        "sha256": "db624e065b6685dfea25db9106752e837f06f26b799763593759efd150fe554a"
+      },
+      {
+        "path": "sudoku/easy/puzzles.pickle",
+        "size": 372063,
+        "sha256": "403353dd5d11e49d42627aee84c7b1ceb399fda03d01f6210ce78d0e61f2b29d"
+      },
+      {
+        "path": "sudoku/easy/solutions.pickle",
+        "size": 364063,
+        "sha256": "b52de75f5e4642adca58b18967bcd4bbcafa699c61b21ac33ee0fd7389e0d576"
+      }
+    ]
+  }
+}
