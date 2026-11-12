@@ -14,6 +14,8 @@ Instead of immediately training a large general-purpose NCM, the project starts 
 
 Read the [full experiment plan](docs/experiment-plan.md).
 
+Implementation planning: [Phases 0–1 engineering plan](docs/implementation-phases-0-1.md).
+
 | Phase | Focus | Decision gate |
 |---|---|---|
 | 0 | Reproduce and instrument official checkpoints | Confirm reliable local baselines |
