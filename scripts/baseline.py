@@ -37,7 +37,9 @@ def git(*args: str, cwd: Path) -> str:
 
 
 def write_json(path: Path, obj: object) -> None:
-    path.write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -46,7 +48,53 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def normalize(shard_path: Path, source_path: Path, count: int, task: str):
+def stage_generation_data(source_path: Path, data_dir: Path, source_name: str,
+                          reference_name: str, count: int) -> None:
+    if source_name == reference_name or Path(source_name).name != source_name or Path(reference_name).name != reference_name:
+        raise ValueError("generation input and placeholder filenames must be distinct basenames")
+    with source_path.open("rb") as f:
+        sources = pickle.load(f)
+    if len(sources) < count:
+        raise ValueError("not enough generation inputs")
+    data_dir.mkdir()
+    with (data_dir / source_name).open("xb") as f:
+        pickle.dump(sources[:count], f)
+    with (data_dir / reference_name).open("xb") as f:
+        pickle.dump([""] * count, f)
+
+
+def attach_references(generation_shard: Path, reference_path: Path, output: Path,
+                      count: int, task: str) -> None:
+    with generation_shard.open("rb") as f:
+        shard = pickle.load(f)
+    with reference_path.open("rb") as f:
+        refs = pickle.load(f)
+    if shard["idxs"] != list(range(count)) or len(shard["hyps"]) != count:
+        raise ValueError("generation shard indices or hypothesis count do not match")
+    if shard["refs"] != [""] * count or len(refs) < count:
+        raise ValueError("generation placeholders or reference count do not match")
+    if task == "sudoku-easy":
+        sys.path.insert(0, str(UPSTREAM))
+        try:
+            from tokenization.sudoku_tokenizer import SudokuTokenizer
+            tokenizer = SudokuTokenizer()
+            refs = [tokenizer.decode(r, skip_special_tokens=True) for r in refs[:count]]
+        finally:
+            sys.path.pop(0)
+    else:
+        refs = refs[:count]
+    if any(not isinstance(ref, str) or not ref.strip() for ref in refs):
+        raise ValueError("empty or non-string reference")
+    shard["refs"] = refs
+    with output.open("xb") as f:
+        pickle.dump(shard, f)
+
+
+def normalize(shard_path: Path, source_path: Path, count: int, task: str,
+              batch_times: list[float] | None = None, batch_size: int | None = None):
+    if batch_times is not None:
+        if batch_size is None or batch_size < 1 or len(batch_times) != (count + batch_size - 1) // batch_size:
+            raise ValueError("invalid batch timing schedule")
     with shard_path.open("rb") as f:
         shard = pickle.load(f)
     with source_path.open("rb") as f:
@@ -58,7 +106,10 @@ def normalize(shard_path: Path, source_path: Path, count: int, task: str):
         raise ValueError("empty or non-string hypothesis or reference")
     candidates = [
         {"task": task, "input_id": i, "candidate_rank": 0, "seed": None,
-         "text": h, "generation_duration_seconds": None, "validity": None, "metrics": None}
+         "text": h, "generation_duration_seconds": None,
+         "generation_batch_duration_seconds": batch_times[i // batch_size] if batch_times is not None else None,
+         "generation_batch_size": min(batch_size, count - (i // batch_size) * batch_size) if batch_times is not None else None,
+         "validity": None, "metrics": None}
         for i, h in zip(ids, hyps)
     ]
     contexts = [
@@ -131,14 +182,20 @@ def main() -> None:
         "generation": OmegaConf.to_container(cfg.generation, resolve=True),
         "batch_size": a.bs, "candidates_per_input": 1, "replicate": 0,
         "seed_schedule": None, "seed_note": "upstream does not explicitly seed conditional evaluation",
-        "offline": True, "reference_isolation": "upstream shard loads references during generation",
-        "warmup_policy": "first output-producing batch excluded from warm generate timing",
+        "offline": True,
+        "reference_isolation": "generation reads staged inputs and empty placeholders; real references are attached after generation, not OS-sandboxed",
+        "warmup_policy": "first output-producing batch excluded from warm generation timing",
         "retries": 0, "exception": None,
     }
     write_json(out / "manifest.json", record)
+    with (out / "run-spec.json").open("x", encoding="utf-8") as file:
+        json.dump(record, file, indent=2, ensure_ascii=False)
+        file.write("\n")
     worker = ROOT / "scripts" / "profile_upstream.py"
     common = [sys.executable, str(worker), "--upstream", str(UPSTREAM)]
     shard = out / "shard_0.pkl"
+    generation_shard = out / "generation_shard.pkl"
+    staged_data = out / "generation-input"
 
     def run(phase: str, args: list[str]) -> None:
         cmd = [*common, "--phase", phase, "--timing-out", str(out / f"{phase}-timing.json"), *args]
@@ -146,17 +203,31 @@ def main() -> None:
             subprocess.run(cmd, cwd=UPSTREAM, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
 
     try:
+        stage_generation_data(data / cfg.data.test, staged_data, str(cfg.data.test),
+                              str(cfg.data.test_refs), a.n)
         run("generation", ["--config", str(config), "--checkpoint-dir", str(checkpoint),
-            "--data-dir", str(data), "--n", str(a.n), "--bs", str(a.bs), "--shard", "0",
-            "--nshards", "1", "--out", str(shard)])
-        candidates, contexts, references = normalize(shard, data / cfg.data.test, a.n, a.task)
+            "--data-dir", str(staged_data), "--n", str(a.n), "--bs", str(a.bs), "--shard", "0",
+            "--nshards", "1", "--out", str(generation_shard)])
+        attach_references(generation_shard, data / cfg.data.test_refs, shard, a.n, a.task)
+        timing = json.loads((out / "generation-timing.json").read_text(encoding="utf-8"))
+        batch_times = timing["full_batch_seconds"]
+        if len(batch_times) != (a.n + a.bs - 1) // a.bs:
+            raise ValueError("generation timing batch count does not match input count")
+        candidates, contexts, references = normalize(shard, data / cfg.data.test, a.n, a.task,
+                                                     batch_times, a.bs)
         write_jsonl(out / "candidates.jsonl", candidates)
         write_jsonl(out / "contexts.jsonl", contexts)
         write_jsonl(out / "references.jsonl", references)
+        completed = (generation_shard, shard, out / "candidates.jsonl", out / "contexts.jsonl",
+                     out / "references.jsonl", out / "generation-timing.json", out / "run-spec.json")
+        with (out / "generation-checkpoint.json").open("x", encoding="utf-8") as file:
+            json.dump({"sha256": {p.name: digest(p) for p in completed}}, file, indent=2)
+            file.write("\n")
         run("scoring", ["--config", str(config), "--glob", str(shard)])
         record["status"] = "succeeded"
-        record["outputs"] = {p.name: digest(p) for p in (shard, out / "candidates.jsonl", out / "contexts.jsonl",
-                                                        out / "references.jsonl", out / "scoring.log")}
+        record["outputs"] = {p.name: digest(p) for p in (generation_shard, shard, out / "candidates.jsonl", out / "contexts.jsonl",
+                                                        out / "references.jsonl", out / "scoring.log",
+                                                        out / "run-spec.json", out / "generation-checkpoint.json")}
         record["metric"] = {"implementation": "upstream scripts/eval_merge.py", "metric": str(cfg.eval.metric)}
         record["timings"] = {
             phase: json.loads((out / f"{phase}-timing.json").read_text(encoding="utf-8"))
@@ -166,6 +237,7 @@ def main() -> None:
     except Exception as exc:
         record["status"] = "failed"
         record["exception"] = f"{type(exc).__name__}: {exc}"
+        print(f"Run failed; check logs in {out}", file=sys.stderr)
         raise
     finally:
         record["ended_utc"] = datetime.now(timezone.utc).isoformat()
