@@ -16,6 +16,8 @@ def validate_generation_checkpoint(source: Path, manifest: dict) -> None:
     checkpoint = json.loads((source / "generation-checkpoint.json").read_text(encoding="utf-8"))
     expected = {"generation_shard.pkl", "shard_0.pkl", "candidates.jsonl", "contexts.jsonl",
                 "references.jsonl", "generation-timing.json", "run-spec.json"}
+    if manifest.get("schema_version", 1) >= 2:
+        expected.add("input-order.jsonl")
     hashes = checkpoint["sha256"]
     if set(hashes) != expected:
         raise ValueError("generation checkpoint file list mismatch")
@@ -23,8 +25,15 @@ def validate_generation_checkpoint(source: Path, manifest: dict) -> None:
         if digest(source / name) != hashes[name]:
             raise ValueError(f"generation checkpoint hash mismatch: {name}")
     spec = json.loads((source / "run-spec.json").read_text(encoding="utf-8"))
+    if manifest.get("schema_version", 1) >= 2:
+        expected_spec_hash = manifest.get("run_spec_sha256")
+        if expected_spec_hash is None or digest(source / "run-spec.json") != expected_spec_hash:
+            raise ValueError("generation checkpoint run specification hash mismatch")
     for key in ("run_id", "task", "upstream_commit", "config_sha256", "reference_model",
-                "input_ids", "batch_size", "generation", "adapter_sha256", "profiler_sha256"):
+                "input_ids", "batch_size", "generation", "adapter_sha256", "profiler_sha256",
+                "schema_version"):
+        if key == "schema_version" and key not in manifest:
+            continue
         if spec[key] != manifest[key]:
             raise ValueError(f"generation checkpoint run specification mismatch: {key}")
 

@@ -68,8 +68,10 @@ def main() -> None:
         runpy.run_path(str(script), run_name="__main__")
         sys.setprofile(None)
         torch.cuda.synchronize()
+        phase_seconds = time.perf_counter() - started
         timing = {
-            "phase_seconds": time.perf_counter() - started,
+            "phase_seconds": phase_seconds,
+            "cold_model_load_and_generation_seconds": phase_seconds,
             "peak_allocated_bytes": torch.cuda.max_memory_allocated(),
             "peak_reserved_bytes": torch.cuda.max_memory_reserved(),
             "device": torch.cuda.get_device_name(),
@@ -82,6 +84,8 @@ def main() -> None:
             "warm_full_generation_seconds": sum(complete_batches[1:]) if len(complete_batches) > 1 else None,
             "load_until_first_batch_seconds": load_seconds,
             "timing_scope": "full batch includes transformer, VQ decoding, token selection and text decoding; excludes prefix preparation",
+            "cold_timing_scope": "from immediately before upstream entry point through model loading, generation and shard write; excludes Python/CUDA process startup",
+            "cuda_synchronized": True,
             "warmup_policy": "first generated batch excluded from warm generation timing",
         }
         args.timing_out.write_text(json.dumps(timing, indent=2) + "\n", encoding="utf-8")

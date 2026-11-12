@@ -75,7 +75,7 @@ Every run must record:
 - Explicit metric implementation/version and references stored separately from candidate generation.
 - Stable task/context, original source, constraints and reference identifiers for offline semantic scoring; restrict reference access to offline evaluation. Store judge results separately, keyed by candidate ID.
 
-Write append-safe intermediate artifacts and support resuming incomplete pools without overwriting valid outputs. Never commit dataset/test answers, checkpoint blobs, or raw generation dumps.
+Write append-safe intermediate artifacts. When candidate pools are introduced in P1, checkpoint completed batches and support resuming incomplete pools without overwriting valid outputs; the P0.3 K=1 adapter can replay completed raw results and retry scoring. Never commit dataset/test answers, checkpoint blobs, or raw generation dumps.
 
 ## 2. Phase 0 — Baseline reproduction and instrumentation
 

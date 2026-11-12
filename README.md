@@ -2,7 +2,7 @@
 
 An independent research project exploring whether **Next-Concept Modeling (NCM)** can trade inference-time computation for model size through candidate generation, Minimum Bayes Risk (MBR) selection, verification, and iterative refinement.
 
-> **Status:** P0-A complete. Official XSum and Sudoku-easy smoke tests ran on 10 and 50 inputs at batch size 4; an initial instrumented baseline adapter is available. Phase 0 reproduction and instrumentation are not yet complete. This repository is not affiliated with the original NCM researchers.
+> **Status:** P0-A and the P0.3 baseline harness/schema are complete. Official XSum and Sudoku-easy smoke tests ran on 10 and 50 inputs at batch size 4. Independent metric validation and measured Phase 0 baselines remain. This repository is not affiliated with the original NCM researchers.
 
 Local setup and hardware notes: [environment](docs/environment.md).
 

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from baseline import attach_references, digest, normalize, stage_generation_data
+from baseline import attach_references, digest, normalize, repository_snapshot, stage_generation_data
 from rescore_baseline import validate_generation_checkpoint
 
 
@@ -28,6 +28,11 @@ class NormalizeTests(unittest.TestCase):
     def test_records_are_separated_and_ordered(self):
         candidates, contexts, references = self.normalize()
         self.assertEqual([x["input_id"] for x in candidates], [0, 1])
+        self.assertEqual([x["example_id"] for x in candidates], ["xsum:test:0", "xsum:test:1"])
+        self.assertEqual([x["candidate_id"] for x in candidates],
+                         ["xsum:test:0:candidate:0", "xsum:test:1:candidate:0"])
+        self.assertEqual(contexts[0]["example_id"], candidates[0]["example_id"])
+        self.assertEqual(references[0]["example_id"], candidates[0]["example_id"])
         self.assertEqual(contexts[1]["source_token_ids"], [3, 4])
         self.assertEqual(references[0]["text"], "r1")
         self.assertNotIn("text", contexts[0])
@@ -109,7 +114,28 @@ class NormalizeTests(unittest.TestCase):
 
     def test_checkpoint_detects_changed_outputs_and_spec(self):
         root = self.source.parent
-        spec = {"run_id": "test", "task": "xsum", "upstream_commit": "sha",
+        spec = {"schema_version": 2, "run_id": "test", "task": "xsum", "upstream_commit": "sha",
+                "config_sha256": "sha", "reference_model": None, "input_ids": [0],
+                "batch_size": 1, "generation": {}, "adapter_sha256": "sha", "profiler_sha256": "sha"}
+        (root / "run-spec.json").write_text(json.dumps(spec), encoding="utf-8")
+        names = ("generation_shard.pkl", "shard_0.pkl", "candidates.jsonl", "contexts.jsonl",
+                 "references.jsonl", "generation-timing.json", "input-order.jsonl")
+        for name in names:
+            (root / name).write_text("data", encoding="utf-8")
+        hashes = {name: digest(root / name) for name in (*names, "run-spec.json")}
+        (root / "generation-checkpoint.json").write_text(json.dumps({"sha256": hashes}), encoding="utf-8")
+        manifest = {**spec, "run_spec_sha256": digest(root / "run-spec.json")}
+        validate_generation_checkpoint(root, manifest)
+        with self.assertRaisesRegex(ValueError, "specification mismatch"):
+            validate_generation_checkpoint(root, {**manifest, "batch_size": 2})
+        (root / "candidates.jsonl").write_text("corrupt", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            validate_generation_checkpoint(root, manifest)
+
+    def test_legacy_generation_checkpoint_remains_rescorable(self):
+        root = self.source.parent / "legacy"
+        root.mkdir()
+        spec = {"run_id": "legacy", "task": "xsum", "upstream_commit": "sha",
                 "config_sha256": "sha", "reference_model": None, "input_ids": [0],
                 "batch_size": 1, "generation": {}, "adapter_sha256": "sha", "profiler_sha256": "sha"}
         (root / "run-spec.json").write_text(json.dumps(spec), encoding="utf-8")
@@ -120,11 +146,12 @@ class NormalizeTests(unittest.TestCase):
         hashes = {name: digest(root / name) for name in (*names, "run-spec.json")}
         (root / "generation-checkpoint.json").write_text(json.dumps({"sha256": hashes}), encoding="utf-8")
         validate_generation_checkpoint(root, spec)
-        with self.assertRaisesRegex(ValueError, "specification mismatch"):
-            validate_generation_checkpoint(root, {**spec, "batch_size": 2})
-        (root / "candidates.jsonl").write_text("corrupt", encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "hash mismatch"):
-            validate_generation_checkpoint(root, spec)
+
+    def test_repository_snapshot_records_git_and_worktree_hashes(self):
+        snapshot = repository_snapshot()
+        self.assertTrue(snapshot["head"])
+        self.assertEqual(len(snapshot["diff_head_sha256"]), 64)
+        self.assertIsInstance(snapshot["untracked_files_sha256"], dict)
 
 
 if __name__ == "__main__":

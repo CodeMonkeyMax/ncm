@@ -36,6 +36,24 @@ def git(*args: str, cwd: Path) -> str:
     return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
 
 
+def repository_snapshot() -> dict:
+    status = git("status", "--porcelain", "--untracked-files=all", cwd=ROOT)
+    diff = subprocess.check_output(["git", "diff", "--binary", "HEAD"], cwd=ROOT)
+    untracked = subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=ROOT
+    ).decode("utf-8").split("\0")
+    untracked_hashes = {
+        path: digest(ROOT / path)
+        for path in untracked if path
+    }
+    return {
+        "head": git("rev-parse", "HEAD", cwd=ROOT),
+        "dirty": bool(status),
+        "diff_head_sha256": hashlib.sha256(diff).hexdigest(),
+        "untracked_files_sha256": untracked_hashes,
+    }
+
+
 def write_json(path: Path, obj: object) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -105,7 +123,9 @@ def normalize(shard_path: Path, source_path: Path, count: int, task: str,
     if any(not isinstance(x, str) or not x.strip() for x in [*hyps, *refs]):
         raise ValueError("empty or non-string hypothesis or reference")
     candidates = [
-        {"task": task, "input_id": i, "candidate_rank": 0, "seed": None,
+        {"candidate_id": f"{task}:test:{i}:candidate:0",
+         "task": task, "input_id": i, "example_id": f"{task}:test:{i}",
+         "candidate_rank": 0, "seed": None,
          "text": h, "generation_duration_seconds": None,
          "generation_batch_duration_seconds": batch_times[i // batch_size] if batch_times is not None else None,
          "generation_batch_size": min(batch_size, count - (i // batch_size) * batch_size) if batch_times is not None else None,
@@ -113,13 +133,14 @@ def normalize(shard_path: Path, source_path: Path, count: int, task: str,
         for i, h in zip(ids, hyps)
     ]
     contexts = [
-        {"task": task, "input_id": i, "source_token_ids": list(sources[i]),
-         "reference_id": f"{task}:test:{i}",
+        {"task": task, "input_id": i, "example_id": f"{task}:test:{i}",
+         "source_token_ids": list(sources[i]), "reference_id": f"{task}:test:{i}",
          "constraints": "preserve clues and solve 9x9 grid" if task == "sudoku-easy" else "summarize the source article"}
         for i in ids
     ]
     references = [
-        {"task": task, "input_id": i, "reference_id": f"{task}:test:{i}", "text": r}
+        {"task": task, "input_id": i, "example_id": f"{task}:test:{i}",
+         "reference_id": f"{task}:test:{i}", "text": r}
         for i, r in zip(ids, refs)
     ]
     return candidates, contexts, references
@@ -157,40 +178,66 @@ def main() -> None:
         snapshot = Path(snapshot_download("gpt2", local_files_only=True))
         reference_model = {"id": "gpt2", "revision": snapshot.name}
     out = ROOT / "runs" / a.run_id
-    out.mkdir(parents=True, exist_ok=False)
     env = os.environ.copy()
     env.update({"CUDA_VISIBLE_DEVICES": str(a.gpu), "TOKENIZERS_PARALLELISM": "false", "HF_HUB_OFFLINE": "1"})
     started = datetime.now(timezone.utc).isoformat()
+    repo_snapshot = repository_snapshot()
+    gpu_info = subprocess.check_output(
+        ["nvidia-smi", "-i", str(a.gpu), "--query-gpu=name,memory.total,driver_version",
+         "--format=csv,noheader,nounits"], text=True
+    ).strip().split(", ")
+    if len(gpu_info) != 3:
+        raise RuntimeError(f"unexpected nvidia-smi device response: {gpu_info!r}")
+    input_ids = list(range(a.n))
+    example_ids = [f"{a.task}:test:{i}" for i in input_ids]
     record = {
+        "schema_version": 2,
         "run_id": a.run_id, "status": "running", "started_utc": started,
-        "repository_head": git("rev-parse", "HEAD", cwd=ROOT),
-        "repository_dirty": bool(git("status", "--porcelain", cwd=ROOT)),
+        "repository": repo_snapshot,
         "upstream_commit": spec["upstream"]["commit"],
         "artifact_manifest": spec, "lock_sha256": digest(LOCK),
         "environment": {"python": platform.python_version(),
                         "packages": subprocess.check_output(
                             [sys.executable, "-m", "pip", "freeze"], text=True).splitlines(),
-                        "gpu_driver": subprocess.check_output(
-                            ["nvidia-smi", "-i", str(a.gpu), "--query-gpu=driver_version",
-                             "--format=csv,noheader"], text=True).strip(),
+                        "gpu": {"name": gpu_info[0], "memory_total_mib": int(gpu_info[1]),
+                                "driver": gpu_info[2]},
                         "cuda_allocator_config": env.get("PYTORCH_CUDA_ALLOC_CONF")},
         "adapter_sha256": digest(Path(__file__)),
         "profiler_sha256": digest(ROOT / "scripts" / "profile_upstream.py"),
         "reference_model": reference_model,
         "config_sha256": digest(config), "task": a.task, "split": "test",
-        "input_ids": list(range(a.n)), "shards": [{"shard": 0, "gpu": a.gpu, "input_ids": list(range(a.n))}],
+        "dataset_files": {
+            "inputs_sha256": digest(data / cfg.data.test),
+            "references_sha256": digest(data / cfg.data.test_refs),
+        },
+        "input_ids": input_ids, "example_ids": example_ids,
+        "input_order_path": "input-order.jsonl",
+        "shards": [{"shard": 0, "gpu": a.gpu,
+                    "input_ids": input_ids, "example_ids": example_ids}],
         "generation": OmegaConf.to_container(cfg.generation, resolve=True),
         "batch_size": a.bs, "candidates_per_input": 1, "replicate": 0,
         "seed_schedule": None, "seed_note": "upstream does not explicitly seed conditional evaluation",
         "offline": True,
         "reference_isolation": "generation reads staged inputs and empty placeholders; real references are attached after generation, not OS-sandboxed",
         "warmup_policy": "first output-producing batch excluded from warm generation timing",
+        "output_paths": {
+            "candidates": "candidates.jsonl", "contexts": "contexts.jsonl",
+            "references": "references.jsonl", "generation_shard": "generation_shard.pkl",
+            "scoring_shard": "shard_0.pkl", "generation_timing": "generation-timing.json",
+            "scoring_timing": "scoring-timing.json", "input_order": "input-order.jsonl",
+        },
         "retries": 0, "exception": None,
     }
-    write_json(out / "manifest.json", record)
+    out.mkdir(parents=True, exist_ok=False)
+    run_spec = {
+        key: value for key, value in record.items()
+        if key not in {"status", "exception", "retries"}
+    }
     with (out / "run-spec.json").open("x", encoding="utf-8") as file:
-        json.dump(record, file, indent=2, ensure_ascii=False)
+        json.dump(run_spec, file, indent=2, ensure_ascii=False)
         file.write("\n")
+    record["run_spec_sha256"] = digest(out / "run-spec.json")
+    write_json(out / "manifest.json", record)
     worker = ROOT / "scripts" / "profile_upstream.py"
     common = [sys.executable, str(worker), "--upstream", str(UPSTREAM)]
     shard = out / "shard_0.pkl"
@@ -203,6 +250,12 @@ def main() -> None:
             subprocess.run(cmd, cwd=UPSTREAM, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
 
     try:
+        write_jsonl(out / "input-order.jsonl", [
+            {"input_id": input_id, "example_id": f"{a.task}:test:{input_id}",
+             "split": "test", "upstream_index": input_id, "shard": 0,
+             "shard_position": input_id}
+            for input_id in input_ids
+        ])
         stage_generation_data(data / cfg.data.test, staged_data, str(cfg.data.test),
                               str(cfg.data.test_refs), a.n)
         run("generation", ["--config", str(config), "--checkpoint-dir", str(checkpoint),
@@ -219,16 +272,23 @@ def main() -> None:
         write_jsonl(out / "contexts.jsonl", contexts)
         write_jsonl(out / "references.jsonl", references)
         completed = (generation_shard, shard, out / "candidates.jsonl", out / "contexts.jsonl",
-                     out / "references.jsonl", out / "generation-timing.json", out / "run-spec.json")
+                     out / "references.jsonl", out / "generation-timing.json",
+                     out / "input-order.jsonl", out / "run-spec.json")
         with (out / "generation-checkpoint.json").open("x", encoding="utf-8") as file:
             json.dump({"sha256": {p.name: digest(p) for p in completed}}, file, indent=2)
             file.write("\n")
         run("scoring", ["--config", str(config), "--glob", str(shard)])
         record["status"] = "succeeded"
-        record["outputs"] = {p.name: digest(p) for p in (generation_shard, shard, out / "candidates.jsonl", out / "contexts.jsonl",
-                                                        out / "references.jsonl", out / "scoring.log",
-                                                        out / "run-spec.json", out / "generation-checkpoint.json")}
-        record["metric"] = {"implementation": "upstream scripts/eval_merge.py", "metric": str(cfg.eval.metric)}
+        record["outputs"] = {p.name: digest(p) for p in (
+            generation_shard, shard, out / "candidates.jsonl", out / "contexts.jsonl",
+            out / "references.jsonl", out / "input-order.jsonl", out / "generation-timing.json",
+            out / "scoring-timing.json", out / "scoring.log",
+            out / "run-spec.json", out / "generation-checkpoint.json")}
+        record["metric"] = {
+            "implementation": "scripts/eval_merge.py",
+            "version": spec["upstream"]["commit"],
+            "metric": str(cfg.eval.metric),
+        }
         record["timings"] = {
             phase: json.loads((out / f"{phase}-timing.json").read_text(encoding="utf-8"))
             for phase in ("generation", "scoring")
