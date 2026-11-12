@@ -1,6 +1,6 @@
 # Implementation Plan — Phases 0 and 1
 
-**Status:** Proposed; no code written and no experiments run  
+**Status:** P0-A, P0.3 and P0.4 implemented; measured Phase 0 baselines and later phases remain
 **Parent:** [Experiment Plan v2.1](experiment-plan.md)  
 **Target:** One RTX 3090 (24 GB), local execution  
 **Primary goal:** Reproduce official NCM baselines, then measure candidate quality and Oracle@K at controlled inference budgets.  
@@ -119,6 +119,20 @@ Capture the upstream score printout and the shard data files as read-only raw ba
 **Acceptance:** Our baseline harness and upstream evaluation agree on example IDs/output counts and task metrics for the same output records; raw results are reusable without rerunning the model.
 
 ### P0.4 — Independently validate scoring
+
+**Implementation and validation (2026-11-12)**
+- `scripts/metrics.py` scores saved P0.3 JSONL artifacts offline; `scripts/score_baseline.py` writes immutable, hashed score records under a new run ID. It supports the legacy P0.3 records by deriving stable example/candidate IDs when absent.
+- Record validation rejects duplicate IDs, missing references/contexts, empty generations, inconsistent candidate ranks and unequal pool sizes. It joins records by stable IDs and scores out-of-order JSONL records in input/rank order.
+- XSum implements upstream ROUGE-1/2/L mean F-measure with stemming. Sudoku independently reports exact reference match, strict 9×9 validity, clue preservation decoded from saved input token IDs, and cell accuracy. WMT14 implements upstream corpus BLEU, lowercase BLEU, chrF, whitespace-token length ratio and a sacreBLEU signature.
+- The full test suite passes, including metric fixtures compared with the upstream ROUGE and sacreBLEU conventions. Re-scoring the saved 10-example runs matched upstream's displayed XSum ROUGE (30.08/8.40/24.28); Sudoku matched 10/10 exact and valid, with independently confirmed clue preservation (10/10). WMT14 has fixture-level validation only; no WMT14 baseline artifacts are present yet.
+- Deliberate malformed-output differences: Sudoku validity requires the canonical nine-row format when row separators are present (upstream only removes separators before checking digits), and cell accuracy always uses 81 cells as the denominator (upstream's `zip` truncates malformed outputs). These stricter checks prevent malformed generations from receiving inflated validity or cell-accuracy scores. Exact-match semantics remain raw string equality, matching upstream.
+
+To independently score an archived JSONL run:
+
+```powershell
+.\.local\venv\Scripts\python.exe scripts\score_baseline.py `
+  --run-id p03-final-xsum-v1 --output-id p04-final-xsum
+```
 
 **Metrics**
 - Sudoku: solved-grid exactness, 9×9 validity, **preservation of original clues**, cell accuracy.
