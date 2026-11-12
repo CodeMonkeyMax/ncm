@@ -64,9 +64,9 @@ On a development/calibration set distinct from the held-out NCM evaluation input
 
 If each wrong candidate has a 1% *independent* chance of being falsely accepted, an all-wrong pool appears to contain at least one passing candidate with probability
 
-\[
+$
 P(\text{at least one false pass}) = 1 - (1 - 0.01)^K.
-\]
+$
 
 Illustrative results: approximately 15% (K=16), 47% (K=64), and 92% (K=256).
 
@@ -100,8 +100,8 @@ Score a representative subset first. Expand to full pools only after the calibra
 
 One record per candidate and pinned judge protocol, linked to the immutable generation artifact:
 
-- \`candidate_id\`, \`task\`, \`input_id\`, \`judge_model_resolved\`, \`rubric_hash\`;
-- \`p_equivalent\`, \`p_task_valid\`, \`p_material_error\`, \`decision\` (pass/fail/uncertain);
+- `candidate_id`, `task`, `input_id`, `judge_model_resolved`, `rubric_hash`;
+- `p_equivalent`, `p_task_valid`, `p_material_error`, `decision` (pass/fail/uncertain);
 - request/token usage, latency, failure/retry status, and adjudication reference when available.
 
 Never overwrite raw model outputs or conventional metric records with judge decisions.
