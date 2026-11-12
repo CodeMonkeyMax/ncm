@@ -1,6 +1,6 @@
 # Experiment Plan: Small-Model NCM with Test-Time Scaling
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Status:** Proposed, not yet implemented  
 **Initial hardware:** RTX 3090 (24 GB VRAM)  
 **Approach:** Frozen pretrained models and inference-time experiments before new training
@@ -20,6 +20,7 @@ Supporting hypotheses:
 - **H1 — Sampling:** More candidates increase the probability that at least one correct or high-quality answer appears.
 - **H2 — Selection:** Consensus- or verifier-based selection can identify better candidates without requiring a large evaluator.
 - **H3 — Iteration:** Generate–evaluate–revise cycles can outperform one-shot consensus at the same end-to-end compute budget.
+- **H4 — Semantic correctness:** Reference-based metrics overlook genuinely correct alternatives, and calibrated lightweight judging can detect them without materially inflating success-within-K.
 
 H1 and H2 can be tested with released checkpoints. H3 may require new conditioning mechanisms or training; this must be checked first.
 
@@ -45,6 +46,7 @@ Tasks:
 - Reproduce single-generation quality metrics where feasible.
 - Measure wall-clock latency, throughput, peak VRAM and GPU utilization on the RTX 3090.
 - Record model/checkpoint versions, prompts, seeds, generation settings and raw outputs.
+- Persist source context, task constraints, and references separately so candidate pools can be semantically evaluated offline without leaking reference answers into generation.
 - Determine which checkpoints support conditional generation and whether arbitrary feedback conditioning is possible.
 - Establish a reproducible held-out evaluation procedure.
 
@@ -72,8 +74,10 @@ Measure:
 - **Oracle@K:** best possible selection from the generated pool, scored only for analysis with independently defined task criteria.
 - Proportion of items with at least one *correct* candidate, for exactly checkable tasks.
 - End-to-end generation cost and latency.
+- **Semantic correctness:** On XSum and WMT14, compare conventional reference-based Oracle@K against Jev-estimated semantic pass-within-K and independently audited correctness. Keep Sudoku deterministic.
+- Calibration error and judge costs, including whether false positives accumulate as K increases.
 
-**Important:** Oracle@K is an upper bound on selection among observed candidates, *not* an achievable deployed selector. For open-ended tasks, report the limits of the oracle metric.
+**Important:** Oracle@K is an upper bound on selection among observed candidates, *not* an achievable deployed selector. For open-ended tasks, report the limits of the oracle metric. Jev passes are **estimated**, not a verified oracle, and must never be conflated with correctness. See [semantic evaluation design](semantic-evaluation.md).
 
 **Gate:** If larger pools do not materially increase potential answer quality, investigate generator limitations before investing in selectors.
 
@@ -93,7 +97,7 @@ Compare:
 
 Use the same candidate pools across selectors to isolate selection quality.
 
-For Sudoku, use exact rule validation. For translation and summarization, use task metrics and, where appropriate, separate checks for adequacy/factual consistency. Never claim that surface similarity alone verifies truth.
+For Sudoku, use exact rule validation. For translation and summarization, use task metrics and, where appropriate, separate checks for adequacy/factual consistency. Never claim that surface similarity alone verifies truth. Jev is one candidate verifier, but a *deployable* selector must not see held-out references that Phase 1's offline judge may use.
 
 Questions:
 - Does consensus predict correctness or popularity?
@@ -187,6 +191,8 @@ Task measurements:
 
 Do not equate higher ROUGE/BLEU with demonstrated reasoning improvement. For selection, take care not to let test-set references leak into ranking methods.
 
+**Phase 1 semantic evaluation addendum:** Use the [Jev semantic correctness protocol](semantic-evaluation.md) as a *separate offline evaluation track*. Distinguish reference equivalence from task correctness and material errors. Calibrate thresholds on development examples, audit held-out disagreements with independent labels, report pool-level false-pass rates at increasing K, and include the complete judge cost. Freeze the resolved Jev model version and scoring rubric before held-out analysis. No Jev score is ground truth simply because it is a probability.
+
 ## 5. Success and failure criteria
 
 These are **provisional research thresholds**, not expected outcomes.
@@ -218,6 +224,7 @@ Start on the **RTX 3090 with 24 GB VRAM**. Do not assume extra GPUs, rented capa
 | Baselines | Current GPU |
 | Sampling and MBR | Current GPU |
 | Verification / iteration | Current GPU first; profile bottlenecks |
+| External semantic judging | Estimate API spend; separately approve a cap before any calls |
 | Cross-model comparisons | Additional compute only if justified |
 | New general-purpose training | Separate proposal and explicit approval |
 
@@ -244,3 +251,4 @@ The first milestone is a **credible and reproducible measurement of small-model 
 
 - Official NCM repository: https://github.com/HazyResearch/ncm
 - Official checkpoints: https://huggingface.co/hazyresearch/ncm-checkpoints
+- Proposed semantic evaluation protocol: [semantic-evaluation.md](semantic-evaluation.md)
