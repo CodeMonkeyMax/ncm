@@ -29,6 +29,7 @@ numpy==2.5.4
 omegaconf==2.3.1
 packaging==26.3
 portalocker==4.4.2
+pyarrow==26.0.1
 pydantic==2.14.3
 pydantic_core==2.50.4
 Pygments==2.21.0

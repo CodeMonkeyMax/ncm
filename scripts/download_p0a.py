@@ -38,6 +38,17 @@ def main() -> None:
                     f"{spec['repo']} main resolved to {Path(cached).name}, "
                     f"not the pinned revision {spec['revision']}"
                 )
+    for spec in manifest.get("development_datasets", []):
+        local_dir = ROOT / spec["local_dir"]
+        for item in spec["files"]:
+            print(f"downloading {spec['repo']}@{spec['revision']}:{item['path']}")
+            hf_hub_download(
+                repo_id=spec["repo"],
+                repo_type="dataset",
+                revision=spec["revision"],
+                filename=item["path"],
+                local_dir=local_dir,
+            )
 
 
 if __name__ == "__main__":

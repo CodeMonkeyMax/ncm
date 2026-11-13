@@ -1,6 +1,6 @@
 # Phase 0 Baseline Report
 
-**Status:** Initial 200-example XSum, Sudoku-easy, and WMT14 baselines are complete. These measurements were made on an RTX 3080, not the planned RTX 3090; the P0 → P1 gate remains closed pending 3090 measurements and separate Phase 1 approval.
+**Status:** P0.5 is complete on the available RTX 3080. Phase 1 has been approved to begin; RTX 3090 comparison is deferred and is not a gate. The measurements below remain RTX 3080 results and must not be presented as 3090 measurements.
 
 ## Summary
 
@@ -90,7 +90,7 @@ The harness-reported CUDA peak allocated/reserved memory was 1,037 / 1,346 MiB f
 
 ## Deviations and remaining work
 
-- The RTX 3080 differs from the planned RTX 3090, so its latency, capacity, and utilization must not be presented as 3090 measurements. Rerun the same fixed IDs/configuration on the target hardware when available.
+- The RTX 3080 differs from the planned RTX 3090, so its latency, capacity, and utilization must not be presented as 3090 measurements. A same-ID/configuration comparison on the target hardware is deferred until available.
 - WMT14 now has a pinned selective artifact allowlist, an offline Qwen tokenizer cache, and a 200-example measured baseline. Its metric implementation has both fixture-level validation and a saved-run comparison against the unchanged upstream scorer.
 - The 200-input results use test indices 0–199, one replicate, and one released sampling configuration. They are preliminary baselines; they do not establish full-test-set performance, uncertainty, stochastic diversity, or factual correctness.
-- No Phase 1 sampling or selector implementation is authorized by these results. The RTX 3090 timing gate and explicit Phase 1 approval remain outstanding.
+- Phase 1 candidate generation is approved to begin. The RTX 3090 comparison is not a gate; Phase 2 selector work and semantic API evaluation remain outside the current approval.

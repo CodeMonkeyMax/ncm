@@ -1,6 +1,6 @@
 # Local environment (P0-A)
 
-Phase 0-A pins the official NCM checkout and the XSum / Sudoku-easy artifacts. Weights, datasets, the virtualenv, and raw runs stay in ignored directories.
+Phase 0 pins the official NCM checkout and the XSum, Sudoku-easy, and WMT14 artifacts. Phase 1 development sources are cached separately; weights, datasets, the virtualenv, and raw runs stay in ignored directories.
 
 ## Hardware
 
@@ -35,11 +35,13 @@ Official files are untrusted external inputs. Upstream evaluation uses `torch.lo
 | Sudoku easy checkpoint | `.local/artifacts/checkpoints/sudoku/easy` |
 | XSum eval inputs | `.local/artifacts/datasets/xsum` |
 | Sudoku easy eval inputs | `.local/artifacts/datasets/sudoku/easy` |
+| WMT14 eval inputs | `.local/artifacts/datasets/wmt14` |
+| Phase 1 validation inputs | `.local/artifacts/phase1-dev` |
 | Raw run outputs (ignored) | `runs/` |
 
 Do not assume a `sudoku-easy/` storage folder. The config name is `sudoku-easy`; the artifact folders are `sudoku/easy`.
 
-The XSum eval config also names `validation_cond512_le48.pickle`. That file is not in the released dataset. The test split uses `passages.pickle` and `reference_summaries.pickle` only.
+The XSum eval config also names `validation_cond512_le48.pickle`; that file is not in the released NCM dataset. Phase 1 instead pins the independent `EdinburghNLP/xsum` validation split and the `wmt/wmt14` de-en validation split. Sudoku development puzzles are deterministically generated with unique solutions because the NCM release includes test boards only.
 
 ## Setup
 
@@ -50,13 +52,15 @@ py -3.12 -m venv .local\venv
 .\.local\venv\Scripts\python -m pip install --upgrade pip
 .\.local\venv\Scripts\python -m pip install -r .local\upstream\ncm\requirements.txt
 .\.local\venv\Scripts\python -m pip install --force-reinstall "torch==2.15.0" --index-url https://download.pytorch.org/whl/cu132
+.\.local\venv\Scripts\python -m pip install pyarrow==26.0.1
 .\.local\venv\Scripts\python scripts\download_p0a.py
 .\.local\venv\Scripts\python scripts\verify_p0a.py
+.\.local\venv\Scripts\python scripts\prepare_phase1_dev.py --n 50
 ```
 
 The second `pip install` is required. Upstream `requirements.txt` only says `torch`, and the default Windows wheel is `2.15.0+cpu`. The CUDA 13.2 wheel matches driver 610.47.
 
-`download_p0a.py` fetches only the allowlisted XSum and Sudoku-easy files (about 840 MB). It does not download WMT14 or the rest of the 8 GB / 23 GB repositories. Checkpoints use Hugging Face `repo_type=model`; datasets use `repo_type=dataset`.
+`download_p0a.py` fetches only the allowlisted NCM task files and the pinned XSum/WMT14 validation parquet files; it does not download full Hub repositories. Checkpoints use Hugging Face `repo_type=model`; datasets use `repo_type=dataset`.
 
 ## Verified
 

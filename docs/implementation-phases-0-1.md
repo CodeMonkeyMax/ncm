@@ -1,6 +1,6 @@
 # Implementation Plan — Phases 0 and 1
 
-**Status:** P0-A, P0.3, P0.4, and initial P0.5 XSum/Sudoku/WMT14 runs complete on RTX 3080. The RTX 3090 timing gate and later-phase approval remain.
+**Status:** P0-A, P0.3, P0.4, and P0.5 are complete on RTX 3080. Phase 1 is approved to begin; the RTX 3090 comparison is deferred and is not a gate. Separate XSum/WMT14 validation sources are pinned, and Sudoku development examples use a deterministic synthetic generator.
 **Parent:** [Experiment Plan v2.1](experiment-plan.md)  
 **Target:** One RTX 3090 (24 GB), local execution  
 **Primary goal:** Reproduce official NCM baselines, then measure candidate quality and Oracle@K at controlled inference budgets.  
@@ -155,15 +155,15 @@ To independently score an archived JSONL run:
 
 **Deliverable:** `docs/results/phase0-report.md` with environment, exact commands, output counts, scores, per-example audit, device utilization, cost per candidate and known deviations.
 
-**Initial execution (2026-11-12 UTC):** The report contains measured 200-example XSum, Sudoku-easy, and WMT14 runs, independent score replays, nvidia-smi telemetry, and fixed-subset repeatability checks. All three produced exactly reproducible candidates on this RTX 3080; the same hardware results must not be treated as RTX 3090 measurements. WMT14 agrees with the independent corpus scorer. The Phase 0 → Phase 1 gate remains open for target-hardware measurements and explicit approval.
+**Initial execution (2026-11-12 UTC):** The report contains measured 200-example XSum, Sudoku-easy, and WMT14 runs, independent score replays, nvidia-smi telemetry, and fixed-subset repeatability checks. All three produced exactly reproducible candidates on this RTX 3080; the same hardware results must not be treated as RTX 3090 measurements. WMT14 agrees with the independent corpus scorer. The user accepted RTX 3080 completion and approved moving to Phase 1; target-hardware comparison is deferred.
 
 **Gate P0 → P1:**
 - [x] Exact upstream versions and artifact hashes recorded.
 - [x] At least XSum and Sudoku easy complete (WMT14 planned or successfully reproduced).
 - [x] Saved outputs reproduce metrics without regeneration.
 - [x] No mismatched IDs/refs, silent corruptions or unexplained evaluation failures in the measured runs.
-- [ ] End-to-end and warm generation latency measured on the 3090.
-- [ ] Phase 1 candidate-generation approach approved before implementation.
+- [x] End-to-end and warm generation latency measured on the available RTX 3080; RTX 3090 comparison deferred.
+- [x] Phase 1 candidate-generation approach approved before implementation.
 
 ## 3. Phase 1 — Candidate scaling (no selector implementation)
 
@@ -183,6 +183,8 @@ Extend the minimal upstream adapter to produce **K candidates per same fixed inp
 
 **Acceptance:** At least two distinct candidates appear for a substantial fraction of test prompts; repeated seeds/configs reproduce saved samples as specified; saved candidate records have complete IDs and provenance.
 
+**Implementation status (2026-11-12):** `scripts/sample_candidates.py` keeps one model loaded, uses one input per generation call for candidate-isolated RNG, derives each seed from `(base seed, task, input ID, replicate, candidate rank)`, and atomically checkpoints one complete input pool at a time. It retains duplicate, malformed, empty, and errored candidates; real references are opened only after generation ends. Repeated Sudoku seeds matched exactly, and greedy outputs matched untouched upstream inference on 50 validation inputs per task. The first K=4 development pass produced distinct candidates for all 50 XSum/WMT14 inputs, but only 2/50 Sudoku inputs at the tested low-temperature setting; Sudoku configuration is not accepted yet.
+
 ### P1.2 — Calibrate sampling on development data only
 
 Use a small, fixed **development set** separate from the held-out evaluation subset. Pilot a limited parameter matrix (for example 2 temperatures × 2 candidate-truncation choices), checking:
@@ -194,6 +196,8 @@ Use a small, fixed **development set** separate from the held-out evaluation sub
 Choose **one primary stochastic configuration per task** before viewing held-out Oracle@K results. Keep the untouched greedy baseline separately. Pre-register any secondary settings as sensitivity analyses.
 
 **Acceptance:** Stable, nontrivial diversity and viable single-candidate quality; sampling parameters frozen for held-out evaluation.
+
+**Development inputs:** Fifty XSum examples come from the pinned EdinburghNLP validation split; fifty WMT14 examples come from the pinned `de-en` validation split. The NCM release contains no Sudoku validation split, so Sudoku uses a deterministic synthetic set of 50 unique, 40-clue puzzles. This Sudoku set is useful for sampler plumbing and initial calibration, but is not claimed to match the released test distribution.
 
 ### P1.3 — Run a staged K sweep
 

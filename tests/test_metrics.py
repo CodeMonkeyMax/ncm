@@ -82,6 +82,14 @@ class SudokuMetricTests(unittest.TestCase):
         self.assertFalse(result["per_candidate"][0]["preserves_clues"])
         self.assertFalse(result["per_candidate"][1]["well_formed"])
 
+    def test_failed_generation_is_retained_and_scored_as_invalid(self):
+        candidates, refs, contexts = records()
+        candidates[0]["text"] = ""
+        candidates[0]["generation_error"] = "RuntimeError: simulated failure"
+        result = score_sudoku(validate_records(candidates, refs, contexts)[1])
+        self.assertFalse(result["per_candidate"][0]["well_formed"])
+        self.assertEqual(result["exact_solution_rate"], 0)
+
 
 class TextMetricTests(unittest.TestCase):
     def test_xsum_matches_upstream_rouge_fmeasure_convention(self):
@@ -102,6 +110,15 @@ class TextMetricTests(unittest.TestCase):
             for name in ("rouge1", "rouge2", "rougeL")
         }
         self.assertEqual(result["mean_rouge_fmeasure_percent"], expected)
+
+    def test_failed_empty_generation_is_retained_and_scores_zero(self):
+        candidates, refs, contexts = records(
+            "xsum", [""], ["a reference summary"], [{}]
+        )
+        candidates[0]["generation_error"] = "EmptyGeneration: model produced no text"
+        result = score_xsum(validate_records(candidates, refs, contexts)[1])
+        self.assertEqual(result["mean_rouge_fmeasure_percent"]["rouge1"], 0)
+        self.assertEqual(result["mean_rouge_fmeasure_percent"]["rougeL"], 0)
 
     def test_wmt_matches_upstream_corpus_metrics_and_signature(self):
         hypotheses = ["Das ist ein Test .", "Ein weiterer Satz ."]

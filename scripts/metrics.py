@@ -97,7 +97,9 @@ def validate_records(
             if not isinstance(example_id, str) or not example_id:
                 raise ValueError(f"candidate {candidate_id} has no example_id")
             candidate["example_id"] = example_id
-        if not isinstance(text, str) or not text.strip():
+        generation_error = candidate.get("generation_error")
+        failed_generation = isinstance(generation_error, str) and bool(generation_error.strip())
+        if not isinstance(text, str) or (not text.strip() and not failed_generation):
             raise ValueError(f"candidate {candidate_id} has an empty generation")
         if task is None:
             task = candidate_task

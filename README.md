@@ -2,7 +2,7 @@
 
 An independent research project exploring whether **Next-Concept Modeling (NCM)** can trade inference-time computation for model size through candidate generation, Minimum Bayes Risk (MBR) selection, verification, and iterative refinement.
 
-> **Status:** P0-A, P0.3 harness/schema, and P0.4 independent metric validation are complete. Initial P0.5 XSum, Sudoku-easy, and WMT14 200-example baselines are recorded on an RTX 3080; the planned RTX 3090 timing gate remains. See the [Phase 0 report](docs/results/phase0-report.md). This repository is not affiliated with the original NCM researchers.
+> **Status:** P0.5 is complete on the available RTX 3080: initial 200-example XSum, Sudoku-easy, and WMT14 baselines are recorded. Phase 1 has been approved to begin; separate XSum/WMT14 validation inputs are pinned, and Sudoku development examples are generated independently. RTX 3090 comparison is deferred, not a phase gate. See the [Phase 0 report](docs/results/phase0-report.md). This repository is not affiliated with the original NCM researchers.
 
 Local setup and hardware notes: [environment](docs/environment.md).
 
@@ -29,7 +29,7 @@ Semantic correctness: [Jev evaluation design and safeguards](docs/semantic-evalu
 | 4 | Compute allocation and autoregressive baselines | Is there a meaningful quality-per-compute advantage? |
 | 5 | General-purpose capability | Only if previous evidence justifies adaptation/training |
 
-**Initial hardware:** RTX 3090 (24 GB VRAM). **Initial policy:** Frozen checkpoints, no training from scratch. Each phase requires review and explicit approval before moving on.
+**Initial hardware target:** RTX 3090 (24 GB VRAM); initial runs use the available RTX 3080. **Initial policy:** Frozen checkpoints, no training from scratch. Each phase requires review and explicit approval before moving on.
 
 ## Working principles
 

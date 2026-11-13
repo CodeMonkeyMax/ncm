@@ -124,5 +124,39 @@
         "git_oid": "4783fe10ac3adce15ac8f358ef5462739852c569"
       }
     ]
-  }
+  },
+  "development_datasets": [
+    {
+      "task": "xsum",
+      "repo": "EdinburghNLP/xsum",
+      "revision": "7d4d486c2f8ef850b1a11aead99b894ff3dd7da9",
+      "local_dir": ".local/artifacts/phase1-dev/xsum",
+      "files": [
+        {
+          "path": "data/validation-00000-of-00001.parquet",
+          "size": 16447668,
+          "sha256": "b7fc808c2dd3d1340349481aeef489e6eb8c22ff5739d8bce6d0f99e5ef8044d"
+        }
+      ],
+      "tokenizer": {
+        "repo": "gpt2",
+        "revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e"
+      }
+    },
+    {
+      "task": "wmt14",
+      "repo": "wmt/wmt14",
+      "revision": "4e149659ddaabd0c9867c031e63a60b74b92e7c0",
+      "local_dir": ".local/artifacts/phase1-dev/wmt14",
+      "files": [
+        {
+          "path": "de-en/validation/0000.parquet",
+          "size": 473798,
+          "sha256": "c4a2a0e3b3e472f97f4eceb6d06724571f5390ac705768a02c1a9ad5c3d675ea"
+        }
+      ],
+      "config": "de-en",
+      "split": "validation"
+    }
+  ]
 }

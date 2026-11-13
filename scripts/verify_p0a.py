@@ -58,6 +58,24 @@ def main() -> int:
                 failed = True
                 continue
             print(f"OK {path}")
+    for spec in manifest.get("development_datasets", []):
+        for item in spec["files"]:
+            path = ROOT / spec["local_dir"] / item["path"]
+            if not path.is_file():
+                print(f"MISSING {path}")
+                failed = True
+                continue
+            size = path.stat().st_size
+            if size != item["size"]:
+                print(f"SIZE {path}: {size} != {item['size']}")
+                failed = True
+                continue
+            digest = sha256(path)
+            if digest != item["sha256"]:
+                print(f"HASH {path}: {digest} != {item['sha256']}")
+                failed = True
+                continue
+            print(f"OK {path}")
     return 1 if failed else 0
 
 
