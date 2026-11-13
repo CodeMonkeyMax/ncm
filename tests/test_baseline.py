@@ -6,7 +6,10 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from baseline import attach_references, digest, normalize, repository_snapshot, stage_generation_data
+from baseline import (
+    artifact_task_path, attach_references, digest, normalize, repository_snapshot,
+    stage_generation_data,
+)
 from rescore_baseline import validate_generation_checkpoint
 
 
@@ -25,6 +28,13 @@ class NormalizeTests(unittest.TestCase):
         self.source.write_bytes(pickle.dumps(self.sources))
         return normalize(self.shard, self.source, 2, "xsum")
 
+    def test_artifact_paths_cover_supported_tasks(self):
+        self.assertEqual(artifact_task_path("xsum"), "xsum")
+        self.assertEqual(artifact_task_path("sudoku-easy"), "sudoku/easy")
+        self.assertEqual(artifact_task_path("wmt14"), "wmt14")
+        with self.assertRaisesRegex(ValueError, "unsupported baseline task"):
+            artifact_task_path("unknown")
+
     def test_records_are_separated_and_ordered(self):
         candidates, contexts, references = self.normalize()
         self.assertEqual([x["input_id"] for x in candidates], [0, 1])
@@ -37,6 +47,15 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(references[0]["text"], "r1")
         self.assertNotIn("text", contexts[0])
         self.assertNotIn("reference", candidates[0])
+
+    def test_wmt_context_keeps_source_text(self):
+        self.result = {"idxs": [0, 1], "hyps": ["a", "b"], "refs": ["r1", "r2"]}
+        self.source.write_bytes(pickle.dumps(["first source", "second source"]))
+        self.shard.write_bytes(pickle.dumps(self.result))
+        _, contexts, _ = normalize(self.shard, self.source, 2, "wmt14")
+        self.assertEqual(contexts[0]["source_text"], "first source")
+        self.assertNotIn("source_token_ids", contexts[0])
+        self.assertEqual(contexts[0]["constraints"], "translate the source sentence")
 
     def test_rejects_mismatched_counts(self):
         self.result["refs"].pop()

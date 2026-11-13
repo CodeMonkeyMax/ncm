@@ -27,7 +27,7 @@ def git_blob_oid(path: Path) -> str:
 def main() -> int:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     failed = False
-    for group in ("checkpoints", "datasets"):
+    for group in ("checkpoints", "datasets", "pre_tokenizers"):
         spec = manifest[group]
         for item in spec["files"]:
             path = ROOT / spec["local_dir"] / item["path"]

@@ -38,6 +38,21 @@
         "path": "sudoku/easy/config.yaml",
         "size": 1980,
         "git_oid": "adef40fc50a296bf598ecf6fee092bc571715c34"
+      },
+      {
+        "path": "wmt14/generator.pt",
+        "size": 480582539,
+        "sha256": "ae580cbbb400a27b30c616634745d4c9cfa8b66806f936c6c26041e5b9640d4f"
+      },
+      {
+        "path": "wmt14/tokenizer.pt",
+        "size": 645790351,
+        "sha256": "74f04176a3cd985e4142761bd7464ea6edb44dc0025c40302b5e45ea0d865702"
+      },
+      {
+        "path": "wmt14/config.yaml",
+        "size": 2177,
+        "git_oid": "6826002535d2b9b62298f4e041b929232055b6fa"
       }
     ]
   },
@@ -65,6 +80,48 @@
         "path": "sudoku/easy/solutions.pickle",
         "size": 364063,
         "sha256": "b52de75f5e4642adca58b18967bcd4bbcafa699c61b21ac33ee0fd7389e0d576"
+      },
+      {
+        "path": "wmt14/sources.pickle",
+        "size": 406100,
+        "sha256": "62254653c32ce9e8b93576797597381babaab301b10ee0a2a3babec89576ea43"
+      },
+      {
+        "path": "wmt14/reference_translations.pickle",
+        "size": 366263,
+        "sha256": "3dcef81d8aeded13f79917cd6b794d2ca9f33223bf35c1fff1c5643eae0df52b"
+      }
+    ]
+  },
+  "pre_tokenizers": {
+    "repo": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "local_dir": ".local/artifacts/pre_tokenizers",
+    "files": [
+      {
+        "path": "config.json",
+        "size": 726,
+        "git_oid": "f5c3703b78ae2a478ae15b247e9f855e0ce2107b"
+      },
+      {
+        "path": "merges.txt",
+        "size": 1671853,
+        "git_oid": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7"
+      },
+      {
+        "path": "tokenizer.json",
+        "size": 11422654,
+        "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+      },
+      {
+        "path": "tokenizer_config.json",
+        "size": 9732,
+        "git_oid": "417d038a63fa3de29cfde265caedae14d1a58d92"
+      },
+      {
+        "path": "vocab.json",
+        "size": 2776833,
+        "git_oid": "4783fe10ac3adce15ac8f358ef5462739852c569"
       }
     ]
   }

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from omegaconf import OmegaConf
-from huggingface_hub import snapshot_download
+from huggingface_hub import snapshot_download, try_to_load_from_cache
 
 from verify_p0a import main as verify_artifacts
 
@@ -22,6 +22,14 @@ ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = ROOT / ".local" / "upstream" / "ncm"
 MANIFEST = ROOT / "configs" / "phase0" / "artifacts.json"
 LOCK = ROOT / "configs" / "phase0" / "requirements-lock.txt"
+
+
+def artifact_task_path(task: str) -> str:
+    paths = {"xsum": "xsum", "sudoku-easy": "sudoku/easy", "wmt14": "wmt14"}
+    try:
+        return paths[task]
+    except KeyError as exc:
+        raise ValueError(f"unsupported baseline task: {task}") from exc
 
 
 def digest(path: Path) -> str:
@@ -132,12 +140,23 @@ def normalize(shard_path: Path, source_path: Path, count: int, task: str,
          "validity": None, "metrics": None}
         for i, h in zip(ids, hyps)
     ]
-    contexts = [
-        {"task": task, "input_id": i, "example_id": f"{task}:test:{i}",
-         "source_token_ids": list(sources[i]), "reference_id": f"{task}:test:{i}",
-         "constraints": "preserve clues and solve 9x9 grid" if task == "sudoku-easy" else "summarize the source article"}
-        for i in ids
-    ]
+    contexts = []
+    for i in ids:
+        context = {
+            "task": task, "input_id": i, "example_id": f"{task}:test:{i}",
+            "reference_id": f"{task}:test:{i}",
+            "constraints": "preserve clues and solve 9x9 grid"
+            if task == "sudoku-easy" else
+            "translate the source sentence" if task == "wmt14" else
+            "summarize the source article",
+        }
+        if task == "wmt14":
+            if not isinstance(sources[i], str):
+                raise ValueError("WMT14 source context must be text")
+            context["source_text"] = sources[i]
+        else:
+            context["source_token_ids"] = list(sources[i])
+        contexts.append(context)
     references = [
         {"task": task, "input_id": i, "example_id": f"{task}:test:{i}",
          "reference_id": f"{task}:test:{i}", "text": r}
@@ -148,7 +167,7 @@ def normalize(shard_path: Path, source_path: Path, count: int, task: str,
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--task", choices=("xsum", "sudoku-easy"), required=True)
+    ap.add_argument("--task", choices=("xsum", "sudoku-easy", "wmt14"), required=True)
     ap.add_argument("--n", type=int, required=True)
     ap.add_argument("--bs", type=int, default=4)
     ap.add_argument("--gpu", type=int, default=0)
@@ -166,7 +185,7 @@ def main() -> None:
     if verify_artifacts():
         raise RuntimeError("artifact verification failed")
 
-    rel = "xsum" if a.task == "xsum" else "sudoku/easy"
+    rel = artifact_task_path(a.task)
     checkpoint = ROOT / spec["checkpoints"]["local_dir"] / rel
     data = ROOT / spec["datasets"]["local_dir"] / rel
     config = UPSTREAM / "config" / "eval" / f"{a.task}.yaml"
@@ -177,6 +196,31 @@ def main() -> None:
     if a.task == "xsum":
         snapshot = Path(snapshot_download("gpt2", local_files_only=True))
         reference_model = {"id": "gpt2", "revision": snapshot.name}
+    pre_tokenizer_model = None
+    if cfg.tokenizer.pre_tokenizer.name == "hf":
+        model_id = str(cfg.tokenizer.pre_tokenizer.model_id)
+        pre_tokenizer_spec = spec.get("pre_tokenizers", {})
+        if model_id == pre_tokenizer_spec.get("repo"):
+            cached_files = [
+                try_to_load_from_cache(model_id, name, revision="main")
+                for name in ("config.json", "tokenizer.json")
+            ]
+            if any(path is None for path in cached_files):
+                raise RuntimeError(f"pinned tokenizer files are not cached for {model_id}")
+            snapshots = {Path(path).parent for path in cached_files if path is not None}
+            if len(snapshots) != 1:
+                raise RuntimeError(f"cached tokenizer files resolve to different revisions for {model_id}")
+            snapshot = snapshots.pop()
+        else:
+            snapshot = Path(snapshot_download(model_id, local_files_only=True))
+        if model_id == pre_tokenizer_spec.get("repo"):
+            expected_revision = pre_tokenizer_spec["revision"]
+            if snapshot.name != expected_revision:
+                raise RuntimeError(
+                    f"cached {model_id} revision {snapshot.name} differs from "
+                    f"the pinned revision {expected_revision}"
+                )
+        pre_tokenizer_model = {"id": model_id, "revision": snapshot.name}
     out = ROOT / "runs" / a.run_id
     env = os.environ.copy()
     env.update({"CUDA_VISIBLE_DEVICES": str(a.gpu), "TOKENIZERS_PARALLELISM": "false", "HF_HUB_OFFLINE": "1"})
@@ -205,6 +249,7 @@ def main() -> None:
         "adapter_sha256": digest(Path(__file__)),
         "profiler_sha256": digest(ROOT / "scripts" / "profile_upstream.py"),
         "reference_model": reference_model,
+        "pre_tokenizer_model": pre_tokenizer_model,
         "config_sha256": digest(config), "task": a.task, "split": "test",
         "dataset_files": {
             "inputs_sha256": digest(data / cfg.data.test),

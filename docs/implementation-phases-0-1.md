@@ -1,6 +1,6 @@
 # Implementation Plan — Phases 0 and 1
 
-**Status:** P0-A, P0.3 and P0.4 implemented; initial P0.5 XSum/Sudoku runs completed on RTX 3080. The RTX 3090 timing gate, WMT14, and later phases remain.
+**Status:** P0-A, P0.3, P0.4, and initial P0.5 XSum/Sudoku/WMT14 runs complete on RTX 3080. The RTX 3090 timing gate and later-phase approval remain.
 **Parent:** [Experiment Plan v2.1](experiment-plan.md)  
 **Target:** One RTX 3090 (24 GB), local execution  
 **Primary goal:** Reproduce official NCM baselines, then measure candidate quality and Oracle@K at controlled inference budgets.  
@@ -84,7 +84,7 @@ Write append-safe intermediate artifacts. When candidate pools are introduced in
 **Implementation tasks**
 1. Pin an upstream NCM commit and checkout locally.
 2. Create/lock the Python environment; verify CUDA visibility and free VRAM.
-3. Download only XSum and Sudoku easy checkpoint + evaluation folders first; verify expected filenames and hashes. WMT14 is next.
+3. Download only XSum and Sudoku easy checkpoint + evaluation folders first; verify expected filenames and hashes. WMT14 files are now in the selective allowlist, including the recorded Qwen3 tokenizer files/revision. Download only each task’s pinned files.
 4. Document local directory mappings and prerequisites (WSL2/NVIDIA drivers if applicable).
 
 **Acceptance:** Model/tokenizer weights and the corresponding evaluation inputs load without modification to upstream source. Record revisions; no data downloads to Git.
@@ -155,7 +155,7 @@ To independently score an archived JSONL run:
 
 **Deliverable:** `docs/results/phase0-report.md` with environment, exact commands, output counts, scores, per-example audit, device utilization, cost per candidate and known deviations.
 
-**Initial execution (2026-11-12 UTC):** The report contains measured 200-example XSum and Sudoku-easy runs, independent score replays, nvidia-smi telemetry and a fixed-subset repeatability check. Both tasks produced exactly reproducible candidates on this RTX 3080; the same hardware results must not be treated as RTX 3090 measurements. WMT14 remains planned because its checkpoint and data are outside the current selective artifact allowlist. The Phase 0 → Phase 1 gate is therefore still open.
+**Initial execution (2026-11-12 UTC):** The report contains measured 200-example XSum, Sudoku-easy, and WMT14 runs, independent score replays, nvidia-smi telemetry, and fixed-subset repeatability checks. All three produced exactly reproducible candidates on this RTX 3080; the same hardware results must not be treated as RTX 3090 measurements. WMT14 agrees with the independent corpus scorer. The Phase 0 → Phase 1 gate remains open for target-hardware measurements and explicit approval.
 
 **Gate P0 → P1:**
 - [x] Exact upstream versions and artifact hashes recorded.
