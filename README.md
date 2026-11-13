@@ -6,6 +6,8 @@ An independent research project exploring whether **Next-Concept Modeling (NCM)*
 
 Local setup and hardware notes: [environment](docs/environment.md).
 
+External review of Phases 0–1: [findings and recommended next steps](docs/reviews/phase0-1-review.md).
+
 ## Research question
 
 **How much model capacity can we replace with efficient sampling, consensus, verification, and iteration before a larger model becomes the better investment?**
