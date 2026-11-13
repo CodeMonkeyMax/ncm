@@ -1,6 +1,6 @@
 # Implementation Plan — Phases 0 and 1
 
-**Status:** P0-A, P0.3, P0.4, and P0.5 are complete on RTX 3080. Phase 1 is approved to begin; the RTX 3090 comparison is deferred and is not a gate. Separate XSum/WMT14 validation sources are pinned, and Sudoku development examples use a deterministic synthetic generator.
+**Status:** P0 and the initial P1.1-P1.5 candidate-sampling report are complete on RTX 3080. RTX 3090 comparison is deferred and is not a gate. Phase 2 selector work and semantic API evaluation remain separately approval-gated.
 **Parent:** [Experiment Plan v2.1](experiment-plan.md)  
 **Target:** One RTX 3090 (24 GB), local execution  
 **Primary goal:** Reproduce official NCM baselines, then measure candidate quality and Oracle@K at controlled inference budgets.  
@@ -183,7 +183,7 @@ Extend the minimal upstream adapter to produce **K candidates per same fixed inp
 
 **Acceptance:** At least two distinct candidates appear for a substantial fraction of test prompts; repeated seeds/configs reproduce saved samples as specified; saved candidate records have complete IDs and provenance.
 
-**Implementation status (2026-11-12):** `scripts/sample_candidates.py` keeps one model loaded, uses one input per generation call for candidate-isolated RNG, derives each seed from `(base seed, task, input ID, replicate, candidate rank)`, and atomically checkpoints one complete input pool at a time. It retains duplicate, malformed, empty, and errored candidates; real references are opened only after generation ends. Repeated Sudoku seeds matched exactly, and greedy outputs matched untouched upstream inference on 50 validation inputs per task. The first K=4 development pass produced distinct candidates for all 50 XSum/WMT14 inputs, but only 2/50 Sudoku inputs at the tested low-temperature setting; Sudoku configuration is not accepted yet.
+**Implementation status (2026-11-13):** `scripts/sample_candidates.py` keeps one model loaded, uses one input per generation call for candidate-isolated RNG, derives each seed from `(base seed, task, input ID, replicate, candidate rank)`, and atomically checkpoints one complete input pool at a time. It retains duplicate, malformed, empty, and errored candidates; references are opened only after generation ends. Validation and held-out test splits are explicit. Greedy outputs matched untouched upstream inference on 50 validation inputs per task; the development calibration and exact-repeat results below freeze one stochastic configuration per task.
 
 ### P1.2 — Calibrate sampling on development data only
 
@@ -225,6 +225,10 @@ Use ascending pools, persisting candidates once and computing all K-prefix metri
 Target several independently seeded pools for uncertainty assessment when cost permits (e.g. three replicates for a fixed representative subset). Fix input IDs and seeds before the run. Do not extrapolate a full 256-candidate sweep to every task or spend unlimited GPU time: **derive an explicit cap in GPU-hours from P0 measurements and seek approval if projected costs exceed it**.
 
 **Acceptance:** Complete nested candidate sets, no unknown input loss, measured GPU usage, and a documented reason for running or skipping K=256.
+
+**Initial held-out compute budget:** Cap the first RTX 3080 held-out sweep at **2.5 GPU-hours total**. It covers one seed/replicate, the first 200 official test inputs per task, and a single nested K=64 pool per task (38,400 candidate generations across all tasks); K=1, 4, and 16 are scored as prefixes. The selected K=4 development runs took 38.84 s (XSum), 38.79 s (WMT14), and 28.09 s (Sudoku) for 200 candidates each. Linear scaling to 200 × 64 gives 112.8 minutes total; a 25% contingency gives 141 minutes, within the 150-minute cap. This is a conservative planning estimate from actual one-input-per-call sampler runs, not a performance guarantee. Stop before exceeding the cap and seek approval for any extension; K=256 and extra replicates are excluded from this budget. The first 200 test inputs reuse the already-pinned P0 official-test prefix so stochastic K=1 can be paired with the archived greedy outputs.
+
+`scripts/prepare_phase1_test.py` prepares separate source-only inputs and held-out references from the archived P0 test records; use `scripts/sample_candidates.py --split test` for generation. After each task pool completes, `scripts/analyze_phase1.py` computes paired K-prefix quality, reference-based oracle opportunity, diversity, generation errors and input-level bootstrap intervals against its greedy run.
 
 ### P1.4 — Compute candidate-scaling metrics
 
@@ -269,12 +273,12 @@ Produce `docs/results/phase1-report.md` containing:
 7. A semantic appendix comparing lexical, Jev-estimated and independently verified results, model/rubric/threshold versions, false-pass rates and judge cost (or a documented gated deferral).
 
 **Gate P1 → P2 (no automatic advance):**
-- [ ] Non-degenerate, reproducible sampling confirmed.
-- [ ] Nested K sweeps and offline scoring independently validated.
-- [ ] Quality/compute and diversity curves produced with uncertainty.
-- [ ] Reference leakage excluded from generation.
-- [ ] If semantic evaluation ran: judge calibration, independent audit, pool-level false-pass analysis and spend accounting completed; otherwise explicitly document deferral.
-- [ ] Evidence indicates whether additional candidate selection is worth testing (or documents a negative finding).
+- [x] Non-degenerate, reproducible sampling confirmed.
+- [x] Nested K sweeps and offline scoring independently validated.
+- [x] Quality/compute and diversity curves produced with uncertainty.
+- [x] Reference leakage excluded from generation.
+- [x] Semantic evaluation deferred and documented; no semantic/API claims are made.
+- [x] Evidence indicates whether additional candidate selection is worth testing.
 - [ ] A separate Phase 2 proposal/approval is recorded.
 
 **Interpretation:** A higher Oracle@K is an *opportunity* for better selection; it does **not** demonstrate that a small NCM can replace a larger model, or that MBR can find the oracle answer.
@@ -309,7 +313,8 @@ Produce `docs/results/phase1-report.md` containing:
 
 ## 6. Decisions deliberately deferred
 
-- Whether WMT14 participates in the initial full sweep or remains a secondary check until hardware measurements exist.
+- Extending beyond the initial 2.5 GPU-hour held-out sweep, including K=256 or additional replicates.
+- Whether a Phase 2 selector is worth testing, based on the held-out curves and actual RTX 3080 costs.
 - Running K=256 for more than a small subset.
 - Adding a separate large verifier, MBR, iterative feedback, training, or scaling model size.
 - Additional hardware/rental costs.
@@ -324,4 +329,4 @@ Produce `docs/results/phase1-report.md` containing:
 
 ---
 
-**Next approval request:** Authorize **P0-A only** (environment pinning, upstream clone, official artifact manifest/download setup). Do not begin coding or running experiments merely because this plan exists.
+**Current scope:** The initial held-out K≤64 sweep completed in 83.0 minutes under its 2.5 GPU-hour RTX 3080 cap. K=256, extra replicates, Phase 2 selector work and semantic API evaluation were not run; extensions require separate approval.
