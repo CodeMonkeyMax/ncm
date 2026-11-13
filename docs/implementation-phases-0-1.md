@@ -199,6 +199,18 @@ Choose **one primary stochastic configuration per task** before viewing held-out
 
 **Development inputs:** Fifty XSum examples come from the pinned EdinburghNLP validation split; fifty WMT14 examples come from the pinned `de-en` validation split. The NCM release contains no Sudoku validation split, so Sudoku uses a deterministic synthetic set of 50 unique, 40-clue puzzles. This Sudoku set is useful for sampler plumbing and initial calibration, but is not claimed to match the released test distribution.
 
+**Calibration result (2026-11-13):** The grid used seed `20261112`, replicate 0, K=4, and 50 examples per task. The greedy baseline remains the untouched upstream configuration. The following primary sampling configurations are frozen for held-out evaluation:
+
+| Task | Frozen generation settings | K=1 development quality vs. greedy | K=4 mean sampled quality | Diversity and errors |
+|---|---|---|---|---|
+| XSum | `temperature=0.7`, `top_k=100`, `top_p=0.95` (upstream penalties unchanged) | ROUGE-1/2/L: 36.72 / 14.32 / 28.43 vs. 36.53 / 14.28 / 29.36 | ROUGE-1/2/L: 36.10 / 13.63 / 28.69 | 50/50 prompts had 4 unique candidates; 0 errors |
+| WMT14 | `temperature=0.7`, `top_k=100`, `top_p=0.95` | BLEU / chrF: 30.70 / 57.60 vs. 31.43 / 59.09 | BLEU / chrF: 30.68 / 58.18, pooled over candidates | 50/50 prompts had alternatives; mean 3.96 unique; 0 errors |
+| Sudoku easy | `temperature=2.1`, `top_k=0`, `top_p=0.95` | 98.0% exact and valid vs. 100% greedy | 91.5% exact and valid across all candidate outputs | 15/50 prompts had alternatives (mean 1.34 unique); exact solution available in all 50 K=4 pools; 0 errors |
+
+Across each frozen setting, a second run over the same examples and seed reproduced every candidate text and error field exactly. The XSum/WMT14 choice favors temperature 0.7: all prompts remain diverse while K=1 scores stay close to greedy. Sudoku's K=1 quality is strong and its diversity is modest but nontrivial; the 40-clue synthetic set is too easy to demonstrate oracle gains because greedy already solves every example. Treat Sudoku's calibration as a frozen procedural choice, not evidence that candidate scaling will help its released test distribution.
+
+The selected development runs and exact-repeat runs are archived under `runs/`: `p12-xsum-t0p7-k100-v1` / `p12-xsum-repeat-v1`, `p12-wmt14-t0p7-k100-v1` / `p12-wmt14-repeat-v1`, and `p12-sudoku-temp21-v1` / `p12-sudoku-temp21-repeat-v1`. These development metrics do not use or reveal held-out stochastic results.
+
 ### P1.3 — Run a staged K sweep
 
 Use ascending pools, persisting candidates once and computing all K-prefix metrics offline.
@@ -297,7 +309,6 @@ Produce `docs/results/phase1-report.md` containing:
 
 ## 6. Decisions deliberately deferred
 
-- Selecting a specific temperature/top-k/top-p combination until P1 development calibration.
 - Whether WMT14 participates in the initial full sweep or remains a secondary check until hardware measurements exist.
 - Running K=256 for more than a small subset.
 - Adding a separate large verifier, MBR, iterative feedback, training, or scaling model size.

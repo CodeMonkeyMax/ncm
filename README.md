@@ -2,7 +2,7 @@
 
 An independent research project exploring whether **Next-Concept Modeling (NCM)** can trade inference-time computation for model size through candidate generation, Minimum Bayes Risk (MBR) selection, verification, and iterative refinement.
 
-> **Status:** P0.5 is complete on the available RTX 3080: initial 200-example XSum, Sudoku-easy, and WMT14 baselines are recorded. Phase 1 has been approved to begin; separate XSum/WMT14 validation inputs are pinned, and Sudoku development examples are generated independently. RTX 3090 comparison is deferred, not a phase gate. See the [Phase 0 report](docs/results/phase0-report.md). This repository is not affiliated with the original NCM researchers.
+> **Status:** P0.5 is complete on the available RTX 3080: initial 200-example XSum, Sudoku-easy, and WMT14 baselines are recorded. Phase 1 sampling is frozen from separate development data (XSum/WMT14 validation splits and synthetic Sudoku puzzles). RTX 3090 comparison is deferred, not a phase gate. See the [Phase 0 report](docs/results/phase0-report.md). This repository is not affiliated with the original NCM researchers.
 
 Local setup and hardware notes: [environment](docs/environment.md).
 
